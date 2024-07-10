@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 
 const app = express();
-const logFilePath = path.join(__dirname, 'requests.log');
+const logFilePath = path.join(__dirname, "requests.log");
 
 app.use(express.json());
 app.use(
@@ -14,16 +14,18 @@ app.use(
 );
 
 app.use((request, response, next) => {
+  if (request.path === "/logs") return next();
+
   const logEntry = {
     hostname: request.hostname,
     origin: request.headers.origin,
     ip: request.headers["x-forwarded-for"] || request.socket.remoteAddress,
     body: request.body,
     path: request.path,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
-  
-  fs.appendFile(logFilePath, JSON.stringify(logEntry) + '\n', (err) => {
+
+  fs.appendFile(logFilePath, JSON.stringify(logEntry) + "\n", (err) => {
     if (err) {
       console.error("Failed to write log entry:", err);
     }
@@ -32,8 +34,18 @@ app.use((request, response, next) => {
   next();
 });
 
-app.get('/logs', (request, response) => {
+app.get("/logs", (request, response) => {
   return response.sendFile(logFilePath);
+});
+
+app.delete("/logs", (request, response) => {
+  fs.truncate(logFilePath, 0, (err) => {
+    if (err) {
+      console.error("Failed to clear log file:", err);
+      return response.status(500).send("Failed to clear log file");
+    }
+    return response.status(204).send();
+  });
 });
 
 app.all("/*", (request, response) => {
@@ -50,7 +62,6 @@ app.all("/*", (request, response) => {
 
   return response.status(204).send();
 });
-
 
 const port = process.env.PORT || 3333;
 
