@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 node:14-alpine as build-stage
+FROM --platform=linux/amd64 node:18-alpine as build-stage
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN yarn tsc
 
 RUN cp -r src/public dist/public
 
-FROM node:14-alpine
+FROM node:18-alpine
 
 ENV PORT=3333
 
