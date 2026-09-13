@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Request Logs</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0f1115;
+        --panel: #171a21;
+        --border: #2a2e37;
+        --text: #e6e8eb;
+        --muted: #8b909c;
+        --accent: #4f8cff;
+        --danger: #ff5f5f;
+        --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+      }
+
+      header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        position: sticky;
+        top: 0;
+        background: var(--bg);
+        z-index: 10;
+      }
+
+      header h1 {
+        font-size: 16px;
+        margin: 0;
+        font-weight: 600;
+      }
+
+      header .count {
+        color: var(--muted);
+        font-weight: 400;
+        margin-left: 8px;
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      button {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 7px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      button:hover {
+        border-color: var(--accent);
+      }
+
+      button.danger:hover {
+        border-color: var(--danger);
+        color: var(--danger);
+      }
+
+      label.toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        user-select: none;
+      }
+
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .filters .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .filters label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .filters input,
+      .filters select {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 7px 8px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: inherit;
+      }
+
+      .filters input:focus,
+      .filters select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      main {
+        padding: 12px 20px 40px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      thead th {
+        text-align: left;
+        color: var(--muted);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 8px;
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 65px;
+        background: var(--bg);
+      }
+
+      tbody tr {
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+      }
+
+      tbody tr:hover {
+        background: var(--panel);
+      }
+
+      td {
+        padding: 8px;
+        vertical-align: top;
+        font-family: var(--mono);
+        font-size: 12.5px;
+      }
+
+      .method {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        background: rgba(79, 140, 255, 0.15);
+        color: var(--accent);
+      }
+
+      td.path {
+        font-family: var(--mono);
+        max-width: 320px;
+        overflow-wrap: anywhere;
+      }
+
+      td.body-preview {
+        color: var(--muted);
+        max-width: 320px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      tr.expanded td.body-preview {
+        white-space: pre-wrap;
+        overflow: visible;
+        text-overflow: unset;
+        color: var(--text);
+      }
+
+      .empty,
+      .loading {
+        color: var(--muted);
+        text-align: center;
+        padding: 40px;
+      }
+
+      .timestamp {
+        color: var(--muted);
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Request Logs<span class="count" id="count"></span></h1>
+      <div class="controls">
+        <label class="toggle">
+          <input type="checkbox" id="autoRefresh" checked />
+          Auto-refresh (5s)
+        </label>
+        <button id="refreshBtn">Refresh</button>
+        <button id="clearBtn" class="danger">Clear logs</button>
+      </div>
+    </header>
+
+    <div class="filters">
+      <div class="field">
+        <label for="fSearch">Search (any field)</label>
+        <input type="text" id="fSearch" placeholder="e.g. token, /api/foo" />
+      </div>
+      <div class="field">
+        <label for="fMethod">Method</label>
+        <select id="fMethod">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fPath">Path</label>
+        <input type="text" id="fPath" placeholder="contains…" />
+      </div>
+      <div class="field">
+        <label for="fHostname">Hostname</label>
+        <input type="text" id="fHostname" placeholder="contains…" />
+      </div>
+      <div class="field">
+        <label for="fIp">IP</label>
+        <input type="text" id="fIp" placeholder="contains…" />
+      </div>
+      <div class="field">
+        <label for="fFrom">From</label>
+        <input type="datetime-local" id="fFrom" />
+      </div>
+      <div class="field">
+        <label for="fTo">To</label>
+        <input type="datetime-local" id="fTo" />
+      </div>
+    </div>
+
+    <main>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 170px">Timestamp</th>
+            <th style="width: 70px">Method</th>
+            <th style="width: 220px">Path</th>
+            <th style="width: 150px">Hostname</th>
+            <th style="width: 130px">IP</th>
+            <th>Body</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr>
+            <td class="loading" colspan="6">Loading…</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+
+    <script>
+      const state = { logs: [] };
+      let autoRefreshTimer = null;
+
+      const el = (id) => document.getElementById(id);
+
+      async function fetchLogs() {
+        try {
+          const res = await fetch("/logs");
+          const data = await res.json();
+          state.logs = Array.isArray(data) ? data : [];
+          populateMethodOptions();
+          render();
+        } catch (err) {
+          el("rows").innerHTML =
+            '<tr><td class="empty" colspan="6">Failed to load logs.</td></tr>';
+          console.error(err);
+        }
+      }
+
+      function populateMethodOptions() {
+        const select = el("fMethod");
+        const current = select.value;
+        const methods = Array.from(
+          new Set(state.logs.map((l) => l.method).filter(Boolean))
+        ).sort();
+
+        select.innerHTML =
+          '<option value="">All</option>' +
+          methods.map((m) => `<option value="${m}">${m}</option>`).join("");
+        select.value = methods.includes(current) ? current : "";
+      }
+
+      function matchesFilters(entry) {
+        const search = el("fSearch").value.trim().toLowerCase();
+        const method = el("fMethod").value;
+        const path = el("fPath").value.trim().toLowerCase();
+        const hostname = el("fHostname").value.trim().toLowerCase();
+        const ip = el("fIp").value.trim().toLowerCase();
+        const from = el("fFrom").value;
+        const to = el("fTo").value;
+
+        if (method && entry.method !== method) return false;
+        if (path && !(entry.path || "").toLowerCase().includes(path)) return false;
+        if (
+          hostname &&
+          !(entry.hostname || "").toLowerCase().includes(hostname)
+        )
+          return false;
+        if (ip && !String(entry.ip || "").toLowerCase().includes(ip)) return false;
+
+        if (from && entry.timestamp && new Date(entry.timestamp) < new Date(from))
+          return false;
+        if (to && entry.timestamp && new Date(entry.timestamp) > new Date(to))
+          return false;
+
+        if (search) {
+          const haystack = JSON.stringify(entry).toLowerCase();
+          if (!haystack.includes(search)) return false;
+        }
+
+        return true;
+      }
+
+      function render() {
+        const filtered = state.logs.filter(matchesFilters).reverse();
+        el("count").textContent = ` (${filtered.length} of ${state.logs.length})`;
+
+        const rows = el("rows");
+
+        if (filtered.length === 0) {
+          rows.innerHTML = '<tr><td class="empty" colspan="6">No matching log entries.</td></tr>';
+          return;
+        }
+
+        rows.innerHTML = filtered
+          .map((entry, i) => {
+            const bodyStr = entry.body && Object.keys(entry.body).length
+              ? JSON.stringify(entry.body)
+              : "";
+            return `
+              <tr data-idx="${i}">
+                <td class="timestamp">${entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ""}</td>
+                <td><span class="method">${entry.method || ""}</span></td>
+                <td class="path">${escapeHtml(entry.path || "")}</td>
+                <td>${escapeHtml(entry.hostname || "")}</td>
+                <td>${escapeHtml(entry.ip || "")}</td>
+                <td class="body-preview">${escapeHtml(bodyStr)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        rows.querySelectorAll("tr[data-idx]").forEach((tr) => {
+          tr.addEventListener("click", () => tr.classList.toggle("expanded"));
+        });
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function setAutoRefresh(enabled) {
+        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+        if (enabled) autoRefreshTimer = setInterval(fetchLogs, 5000);
+      }
+
+      document
+        .querySelectorAll(".filters input, .filters select")
+        .forEach((input) => input.addEventListener("input", render));
+
+      el("refreshBtn").addEventListener("click", fetchLogs);
+      el("autoRefresh").addEventListener("change", (e) =>
+        setAutoRefresh(e.target.checked)
+      );
+
+      el("clearBtn").addEventListener("click", async () => {
+        if (!confirm("Clear all log entries? This cannot be undone.")) return;
+        await fetch("/logs", { method: "DELETE" });
+        await fetchLogs();
+      });
+
+      fetchLogs();
+      setAutoRefresh(true);
+    </script>
+  </body>
+</html>

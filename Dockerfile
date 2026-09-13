@@ -11,6 +11,8 @@ COPY . .
 
 RUN yarn tsc
 
+RUN cp -r src/public dist/public
+
 FROM node:14-alpine
 
 ENV PORT=3333

@@ -14,12 +14,13 @@ app.use(
 );
 
 app.use((request, response, next) => {
-  if (request.path === "/logs") return next();
+  if (request.path === "/logs" || request.path === "/logs/view") return next();
 
   const logEntry = {
     hostname: request.hostname,
     origin: request.headers.origin,
     ip: request.headers["x-forwarded-for"] || request.socket.remoteAddress,
+    method: request.method,
     body: request.body,
     path: request.path,
     timestamp: new Date().toISOString(),
@@ -34,8 +35,32 @@ app.use((request, response, next) => {
   next();
 });
 
+app.get("/logs/view", (request, response) => {
+  return response.sendFile(path.join(__dirname, "public", "logs.html"));
+});
+
 app.get("/logs", (request, response) => {
-  return response.sendFile(logFilePath);
+  fs.readFile(logFilePath, "utf-8", (err, data) => {
+    if (err) {
+      if (err.code === "ENOENT") return response.json([]);
+
+      console.error("Failed to read log file:", err);
+      return response.status(500).send("Failed to read log file");
+    }
+
+    const logEntries = data
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return { raw: line };
+        }
+      });
+
+    return response.json(logEntries);
+  });
 });
 
 app.delete("/logs", (request, response) => {
